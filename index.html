@@ -40,8 +40,8 @@
 
     <label>Website Filter Mode:</label>
     <select id="filterMode">
-      <option value="blacklist">Block (Blacklist)</option>
-      <option value="whitelist">Allow Only (Whitelist)</option>
+      <option value="blacklistedURLs">Block (Blacklist)</option>
+      <option value="whitelistedURLs">Allow Only (Whitelist)</option>
     </select>
 
     <label>Websites (one per line):</label>
@@ -73,17 +73,16 @@
       const wifiSSID = document.getElementById('wifiSSID').value.trim();
       const wifiPassword = document.getElementById('wifiPassword').value.trim();
 
-      const webFilterPayload = {
-        PayloadType: "com.apple.webcontent-filter",
-        FilterType: filterMode,
-        PayloadIdentifier: "com.example.webfilter",
-        PayloadUUID: uuid,
+      const urlBlockPayload = {
+        PayloadType: "com.apple.applicationaccess",
+        PayloadIdentifier: "com.example.urlblock",
+        PayloadUUID: generateUUID(),
         PayloadVersion: 1,
-        PayloadDisplayName: "Web Content Filter"
+        PayloadDisplayName: "Website Access Control"
       };
-      webFilterPayload[filterMode === 'blacklist' ? 'SiteBlacklist' : 'SiteWhitelist'] = siteList;
+      urlBlockPayload[filterMode] = siteList;
 
-      const payloads = [webFilterPayload];
+      const payloads = [urlBlockPayload];
 
       if (wifiSSID && wifiPassword) {
         payloads.push({
