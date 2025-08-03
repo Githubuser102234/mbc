@@ -1,135 +1,93 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Apple Privacy Profile Generator</title>
+  <meta charset="UTF-8">
+  <title>MobileConfig Profile Generator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body {
       font-family: Arial, sans-serif;
       margin: 1em;
-      background-color: #f0f2f5;
+      background-color: #f4f4f4;
       color: #333;
     }
-    input, select, textarea, button {
-      padding: 12px;
-      margin: 8px 0;
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px #ccc;
+    }
+    h1 {
+      color: #007aff;
+      font-size: 1.5em;
+      margin-bottom: 1em;
+    }
+    label {
+      font-weight: bold;
+      display: block;
+      margin-top: 15px;
+    }
+    input, textarea, button {
       width: 100%;
+      padding: 10px;
+      margin-top: 5px;
       box-sizing: border-box;
-      border-radius: 6px;
-      border: 1px solid #ccc;
-      font-size: 1em;
     }
     button {
+      margin-top: 20px;
       background-color: #007aff;
       color: white;
       border: none;
       cursor: pointer;
     }
     button:hover {
-      background-color: #005ecb;
+      background-color: #005bb5;
     }
-    .section {
-      background: white;
-      padding: 1em;
-      border-radius: 8px;
-      box-shadow: 0 0 8px rgba(0,0,0,0.1);
-      margin-bottom: 2em;
-    }
-    @media (max-width: 600px) {
-      body {
-        margin: 0.5em;
-      }
+    .note {
+      font-size: 0.9em;
+      color: #888;
+      margin-top: 10px;
     }
   </style>
 </head>
 <body>
-  <h1>📱 Privacy Profile Generator</h1>
+  <div class="container">
+    <h1>MobileConfig Generator</h1>
 
-  <div class="section">
-    <label>Profile Name:</label>
-    <input type="text" id="profileName" value="My Privacy Profile" />
+    <label>Profile Name</label>
+    <input type="text" id="profileName" value="My Profile">
 
-    <label>Payload UUID (optional):</label>
-    <input type="text" id="uuid" />
+    <label>Wi-Fi SSID (optional)</label>
+    <input type="text" id="wifiSSID" placeholder="MyWiFi">
 
-    <label>Website Filter Mode:</label>
-    <select id="filterMode">
-      <option value="blacklistedURLs">Block (Blacklist)</option>
-      <option value="whitelistedURLs">Allow Only (Whitelist)</option>
-    </select>
+    <label>Wi-Fi Password (optional)</label>
+    <input type="password" id="wifiPassword" placeholder="password123">
 
-    <label>Websites (one per line):</label>
-    <textarea id="sites" rows="4" placeholder="https://example.com"></textarea>
+    <div class="note">
+      Website blocking and app restrictions are not included (only allowed on supervised devices).
+    </div>
 
-    <label>Block System Apps:</label>
-    <select multiple id="blockedApps">
-      <option value="allowSafari">Safari</option>
-      <option value="allowCamera">Camera</option>
-      <option value="allowFaceTime">FaceTime</option>
-      <option value="allowAppInstallation">App Installation</option>
-      <option value="allowAccountModification">Account Modification</option>
-      <option value="allowAirDrop">AirDrop</option>
-      <option value="allowiCloudDocuments">iCloud Drive</option>
-    </select>
-
-    <label>Wi-Fi SSID (optional):</label>
-    <input type="text" id="wifiSSID" />
-
-    <label>Wi-Fi Password:</label>
-    <input type="password" id="wifiPassword" />
+    <button onclick="generateProfile()">Download Profile</button>
   </div>
-
-  <button onclick="generateProfile()">Generate & Download Profile</button>
 
   <script>
     function generateUUID() {
-      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-        const r = Math.random() * 16 | 0,
-              v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
       });
     }
 
     function generateProfile() {
-      const profileName = document.getElementById('profileName').value.trim();
-      const uuid = document.getElementById('uuid').value || generateUUID();
-      const filterMode = document.getElementById('filterMode').value;
-      const sites = document.getElementById('sites').value.trim().split('\n').map(s => s.trim()).filter(Boolean);
-      const blockedAppValues = Array.from(document.getElementById('blockedApps').selectedOptions).map(opt => opt.value);
+      const profileName = document.getElementById('profileName').value;
       const wifiSSID = document.getElementById('wifiSSID').value.trim();
       const wifiPassword = document.getElementById('wifiPassword').value.trim();
 
       const payloads = [];
 
-      // ✅ Website Filtering Payload
-      const accessControlPayload = {
-        PayloadType: "com.apple.applicationaccess",
-        PayloadIdentifier: "com.example.webblock",
-        PayloadUUID: generateUUID(),
-        PayloadVersion: 1,
-        PayloadDisplayName: "Web Filtering",
-        allowWebBrowserAccess: false
-      };
-      accessControlPayload[filterMode] = sites;
-      payloads.push(accessControlPayload);
-
-      // ✅ System/App Restrictions Payload
-      if (blockedAppValues.length > 0) {
-        const restrictionsPayload = {
-          PayloadType: "com.apple.applicationaccess",
-          PayloadIdentifier: "com.example.appblock",
-          PayloadUUID: generateUUID(),
-          PayloadVersion: 1,
-          PayloadDisplayName: "App Restrictions"
-        };
-        blockedAppValues.forEach(key => {
-          restrictionsPayload[key] = false;
-        });
-        payloads.push(restrictionsPayload);
-      }
-
-      // ✅ Optional Wi-Fi Payload
       if (wifiSSID && wifiPassword) {
         payloads.push({
           PayloadType: "com.apple.wifi.managed",
@@ -145,12 +103,11 @@
         });
       }
 
-      // ✅ Wrap final profile
       const profile = {
         PayloadType: "Configuration",
         PayloadVersion: 1,
-        PayloadIdentifier: "com.example." + uuid.slice(0, 8),
-        PayloadUUID: uuid,
+        PayloadIdentifier: "com.example." + generateUUID().slice(0, 8),
+        PayloadUUID: generateUUID(),
         PayloadDisplayName: profileName,
         PayloadContent: payloads
       };
@@ -184,7 +141,11 @@ ${convertToXML(profile)}
         } else if (Array.isArray(val)) {
           xml += indent + `<array>\n`;
           val.forEach(item => {
-            xml += indent + indent + `<string>${item}</string>\n`;
+            if (typeof item === 'string') {
+              xml += indent + indent + `<string>${item}</string>\n`;
+            } else {
+              xml += indent + indent + convertToXML(item, indent + '  ') + '\n';
+            }
           });
           xml += indent + `</array>\n`;
         } else if (typeof val === 'object') {
