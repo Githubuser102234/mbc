@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Apple Privacy Profile Generator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 2em;
+      background-color: #f9f9f9;
+      color: #333;
+    }
+    input, select, textarea, button {
+      padding: 10px;
+      margin: 10px 0;
+      width: 100%;
+      max-width: 600px;
+      display: block;
+    }
+    h1 {
+      color: #007aff;
+    }
+    .section {
+      margin-bottom: 30px;
+      padding: 20px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 0 10px #ccc;
+    }
+  </style>
+</head>
+<body>
+  <h1>Apple Privacy Profile Generator</h1>
+  <div class="section">
+    <label>Profile Display Name:</label>
+    <input type="text" id="profileName" value="My Privacy Profile">
+
+    <label>Payload UUID (leave blank to auto-generate):</label>
+    <input type="text" id="uuid">
+
+    <label>Website Filter Mode:</label>
+    <select id="filterMode">
+      <option value="blacklist">Block (Blacklist)</option>
+      <option value="whitelist">Allow Only (Whitelist)</option>
+    </select>
+
+    <label>Websites (one per line):</label>
+    <textarea id="sites" rows="6" placeholder="https://example.com"></textarea>
+
+    <label>Wi-Fi SSID (optional):</label>
+    <input type="text" id="wifiSSID" placeholder="MyWiFi">
+
+    <label>Wi-Fi Password (optional):</label>
+    <input type="password" id="wifiPassword" placeholder="WiFiPassword123">
+  </div>
+
+  <button onclick="generateProfile()">Generate & Download Profile</button>
+
+  <script>
+    function generateUUID() {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
+
+    function generateProfile() {
+      const profileName = document.getElementById('profileName').value;
+      let uuid = document.getElementById('uuid').value || generateUUID();
+      const filterMode = document.getElementById('filterMode').value;
+      const siteList = document.getElementById('sites').value.trim().split('\n').map(s => s.trim()).filter(Boolean);
+      const wifiSSID = document.getElementById('wifiSSID').value.trim();
+      const wifiPassword = document.getElementById('wifiPassword').value.trim();
+
+      const webFilterPayload = {
+        PayloadType: "com.apple.webcontent-filter",
+        FilterType: filterMode,
+        PayloadIdentifier: "com.example.webfilter",
+        PayloadUUID: uuid,
+        PayloadVersion: 1,
+        PayloadDisplayName: "Web Content Filter"
+      };
+      webFilterPayload[filterMode === 'blacklist' ? 'SiteBlacklist' : 'SiteWhitelist'] = siteList;
+
+      const payloads = [webFilterPayload];
+
+      if (wifiSSID && wifiPassword) {
+        payloads.push({
+          PayloadType: "com.apple.wifi.managed",
+          SSID_STR: wifiSSID,
+          HiddenNetwork: false,
+          AutoJoin: true,
+          EncryptionType: "WPA",
+          Password: wifiPassword,
+          PayloadDisplayName: "Wi-Fi Config",
+          PayloadIdentifier: "com.example.wifi",
+          PayloadUUID: generateUUID(),
+          PayloadVersion: 1
+        });
+      }
+
+      const profile = {
+        PayloadType: "Configuration",
+        PayloadVersion: 1,
+        PayloadIdentifier: "com.example." + uuid.slice(0, 8),
+        PayloadUUID: uuid,
+        PayloadDisplayName: profileName,
+        PayloadContent: payloads
+      };
+
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+${convertToXML(profile)}
+</plist>`;
+
+      const blob = new Blob([xml], { type: 'application/x-apple-aspen-config' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = profileName.replace(/\s+/g, '_').toLowerCase() + ".mobileconfig";
+      a.click();
+    }
+
+    function convertToXML(obj, indent = '  ') {
+      if (typeof obj !== 'object' || obj === null) return '';
+      let xml = '<dict>\n';
+      for (const key in obj) {
+        const val = obj[key];
+        xml += indent + `<key>${key}</key>\n`;
+        if (typeof val === 'string') {
+          xml += indent + `<string>${val}</string>\n`;
+        } else if (typeof val === 'number') {
+          xml += indent + `<integer>${val}</integer>\n`;
+        } else if (typeof val === 'boolean') {
+          xml += indent + `<${val}/>\n`;
+        } else if (Array.isArray(val)) {
+          xml += indent + `<array>\n`;
+          val.forEach(item => {
+            if (typeof item === 'string') {
+              xml += indent + indent + `<string>${item}</string>\n`;
+            } else {
+              xml += indent + indent + convertToXML(item, indent + '  ') + '\n';
+            }
+          });
+          xml += indent + `</array>\n`;
+        } else if (typeof val === 'object') {
+          xml += indent + convertToXML(val, indent + '  ') + '\n';
+        }
+      }
+      xml += '</dict>';
+      return xml;
+    }
+  </script>
+</body>
+</html>
