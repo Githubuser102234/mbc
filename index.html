@@ -50,6 +50,15 @@
       color: #888;
       margin-top: 10px;
     }
+
+    @media (max-width: 480px) {
+      body {
+        font-size: 16px;
+      }
+      input, textarea, button {
+        font-size: 16px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -65,8 +74,14 @@
     <label>Wi-Fi Password (optional)</label>
     <input type="password" id="wifiPassword" placeholder="password123">
 
+    <label>Web Clip Title (Home Screen Bookmark)</label>
+    <input type="text" id="clipTitle" placeholder="My Website">
+
+    <label>Web Clip URL</label>
+    <input type="url" id="clipURL" placeholder="https://example.com">
+
     <div class="note">
-      Website blocking and app restrictions are not included (only allowed on supervised devices).
+      Website blocking and app restrictions require supervised mode. Home screen bookmarks will remain until the profile is removed.
     </div>
 
     <button onclick="generateProfile()">Download Profile</button>
@@ -85,6 +100,8 @@
       const profileName = document.getElementById('profileName').value;
       const wifiSSID = document.getElementById('wifiSSID').value.trim();
       const wifiPassword = document.getElementById('wifiPassword').value.trim();
+      const clipTitle = document.getElementById('clipTitle').value.trim();
+      const clipURL = document.getElementById('clipURL').value.trim();
 
       const payloads = [];
 
@@ -97,9 +114,24 @@
           EncryptionType: "WPA",
           Password: wifiPassword,
           PayloadDisplayName: "Wi-Fi Config",
-          PayloadIdentifier: "com.example.wifi",
+          PayloadIdentifier: "com.example.wifi." + generateUUID(),
           PayloadUUID: generateUUID(),
           PayloadVersion: 1
+        });
+      }
+
+      if (clipTitle && clipURL) {
+        payloads.push({
+          PayloadType: "com.apple.webClip.managed",
+          PayloadVersion: 1,
+          PayloadIdentifier: "com.example.webclip." + generateUUID(),
+          PayloadUUID: generateUUID(),
+          PayloadDisplayName: clipTitle,
+          Label: clipTitle,
+          URL: clipURL,
+          IsRemovable: false,
+          Precomposed: true,
+          FullScreen: true
         });
       }
 
