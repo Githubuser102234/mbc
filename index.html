@@ -80,8 +80,11 @@
     <label>Web Clip URL</label>
     <input type="url" id="clipURL" placeholder="https://example.com">
 
+    <label>Web Clip Icon URL</label>
+    <input type="url" id="clipIcon" placeholder="https://example.com/icon.png">
+
     <div class="note">
-      Website blocking and app restrictions require supervised mode. Home screen bookmarks will remain until the profile is removed.
+      Bookmark icon must be a square image (e.g. 120x120). Profile is not removable unless deleted in Settings.
     </div>
 
     <button onclick="generateProfile()">Download Profile</button>
@@ -102,6 +105,7 @@
       const wifiPassword = document.getElementById('wifiPassword').value.trim();
       const clipTitle = document.getElementById('clipTitle').value.trim();
       const clipURL = document.getElementById('clipURL').value.trim();
+      const clipIcon = document.getElementById('clipIcon').value.trim();
 
       const payloads = [];
 
@@ -121,7 +125,7 @@
       }
 
       if (clipTitle && clipURL) {
-        payloads.push({
+        const webClipPayload = {
           PayloadType: "com.apple.webClip.managed",
           PayloadVersion: 1,
           PayloadIdentifier: "com.example.webclip." + generateUUID(),
@@ -132,7 +136,13 @@
           IsRemovable: false,
           Precomposed: true,
           FullScreen: true
-        });
+        };
+
+        if (clipIcon) {
+          webClipPayload.Icon = clipIcon;
+        }
+
+        payloads.push(webClipPayload);
       }
 
       const profile = {
