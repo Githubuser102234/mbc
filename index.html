@@ -75,8 +75,6 @@
     <label>Wi-Fi Password (optional)</label>
     <input type="password" id="wifiPassword" placeholder="password123" />
 
-    <label><input type="checkbox" id="restrictApps"> Restrict System Apps</label>
-
     <div id="webclipList"></div>
     <button onclick="addWebClip()">Add WebClip (Home Screen Bookmark)</button>
 
@@ -86,8 +84,8 @@
   <script>
     const SUPABASE_URL = "https://hwqvzeilsvzhwiioojwe.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh3cXZ6ZWlsc3Z6aHdpaW9vandlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQyNzkwNTksImV4cCI6MjA2OTg1NTA1OX0.a3WoFihER-u9BNqtguvVz-w08szpsYxTqIYEI9pyZ4I";
+
     let webclipCount = 0;
-    const iconBlobs = {};
 
     function addWebClip() {
       const container = document.createElement("div");
@@ -100,29 +98,13 @@
         <input type="url" id="clipURL${webclipCount}" placeholder="https://example.com" />
 
         <label>Icon Upload (PNG or JPG)</label>
-        <input type="file" accept="image/*" onchange="readIcon(event, ${webclipCount})" />
+        <input type="file" accept="image/*" onchange="uploadIcon(event, ${webclipCount})" />
         <img class="preview" id="preview${webclipCount}" />
 
         <input type="hidden" id="iconBase64${webclipCount}" />
       `;
       document.getElementById("webclipList").appendChild(container);
       webclipCount++;
-    }
-
-    function readIcon(event, index) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = reader.result.split(",")[1];
-        document.getElementById(`iconBase64${index}`).value = base64;
-
-        const preview = document.getElementById(`preview${index}`);
-        preview.src = reader.result;
-        preview.style.display = "block";
-      };
-      reader.readAsDataURL(file);
     }
 
     function generateUUID() {
@@ -132,12 +114,50 @@
       });
     }
 
+    async function uploadIcon(event, index) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      // Preview
+      const reader = new FileReader();
+      reader.onload = async function () {
+        const base64 = reader.result.split(',')[1];
+        document.getElementById(`iconBase64${index}`).value = base64;
+
+        const preview = document.getElementById(`preview${index}`);
+        preview.src = reader.result;
+        preview.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+
+      // Upload to Supabase (optional, can be skipped)
+      const fileName = `icon-${Date.now()}-${index}.png`;
+      const res = await fetch(`${SUPABASE_URL}/storage/v1/object/images/${fileName}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/octet-stream',
+          'x-upsert': 'true'
+        },
+        body: file
+      });
+
+      if (!res.ok) {
+        const error = await res.text();
+        alert("Upload failed: " + error);
+        console.error(error);
+      }
+    }
+
     function convertToXML(obj, indent = '  ') {
       let xml = '<dict>\n';
       for (const key in obj) {
         const val = obj[key];
         xml += indent + `<key>${key}</key>\n`;
-        if (typeof val === 'string') {
+
+        if (val && typeof val === 'object' && val.__base64) {
+          xml += indent + `<data>${val.__base64}</data>\n`;
+        } else if (typeof val === 'string') {
           xml += indent + `<string>${val}</string>\n`;
         } else if (typeof val === 'number') {
           xml += indent + `<integer>${val}</integer>\n`;
@@ -161,7 +181,6 @@
       const profileName = document.getElementById('profileName').value.trim();
       const wifiSSID = document.getElementById('wifiSSID').value.trim();
       const wifiPassword = document.getElementById('wifiPassword').value.trim();
-      const restrictApps = document.getElementById('restrictApps').checked;
 
       const payloads = [];
 
@@ -177,21 +196,6 @@
           PayloadIdentifier: "com.example.wifi",
           PayloadUUID: generateUUID(),
           PayloadVersion: 1
-        });
-      }
-
-      if (restrictApps) {
-        payloads.push({
-          PayloadType: "com.apple.applicationaccess",
-          PayloadVersion: 1,
-          PayloadIdentifier: "com.example.app.restrict",
-          PayloadUUID: generateUUID(),
-          PayloadDisplayName: "App Restrictions",
-          allowSafari: false,
-          allowCamera: false,
-          allowFaceTime: false,
-          allowScreenShot: false,
-          allowAppInstallation: false
         });
       }
 
@@ -215,7 +219,7 @@
           };
 
           if (base64) {
-            clipPayload.Icon = base64;
+            clipPayload.Icon = { __base64: base64 };
           }
 
           payloads.push(clipPayload);
@@ -231,9 +235,12 @@
         PayloadContent: payloads
       };
 
-      let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"\n "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n`;
-      xml += convertToXML(profile);
-      xml += '\n</plist>';
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+${convertToXML(profile)}
+</plist>`;
 
       const blob = new Blob([xml], { type: 'application/x-apple-aspen-config' });
       const a = document.createElement('a');
