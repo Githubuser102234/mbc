@@ -1,96 +1,125 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>MobileConfig Profile Generator</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
+  <title>MobileConfig WebClip Generator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body {
       font-family: Arial, sans-serif;
-      margin: 1em;
-      background-color: #f4f4f4;
-      color: #333;
+      background: #f4f4f4;
+      margin: 0;
+      padding: 1em;
     }
     .container {
-      max-width: 600px;
+      max-width: 700px;
       margin: auto;
-      background: #fff;
+      background: white;
       padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 0 10px #ccc;
+      border-radius: 10px;
+      box-shadow: 0 0 8px #ccc;
     }
     h1 {
       color: #007aff;
-      font-size: 1.5em;
-      margin-bottom: 1em;
     }
     label {
       font-weight: bold;
-      display: block;
       margin-top: 15px;
+      display: block;
     }
-    input, textarea, button {
+    input, button {
       width: 100%;
       padding: 10px;
       margin-top: 5px;
       box-sizing: border-box;
     }
-    button {
+    .webclip {
       margin-top: 20px;
-      background-color: #007aff;
-      color: white;
-      border: none;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #005bb5;
+      border: 1px solid #ddd;
+      padding: 15px;
+      border-radius: 6px;
+      background: #fafafa;
     }
     .note {
-      font-size: 0.9em;
+      font-size: 0.85em;
       color: #888;
       margin-top: 10px;
     }
-
-    @media (max-width: 480px) {
-      body {
-        font-size: 16px;
-      }
-      input, textarea, button {
-        font-size: 16px;
-      }
+    .icon-preview {
+      margin-top: 5px;
+      max-width: 100px;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>MobileConfig Generator</h1>
+    <h1>WebClip Profile Generator</h1>
 
-    <label>Profile Name</label>
-    <input type="text" id="profileName" value="My Profile">
+    <label>Profile Display Name</label>
+    <input type="text" id="profileName" value="My WebClips">
 
-    <label>Wi-Fi SSID (optional)</label>
-    <input type="text" id="wifiSSID" placeholder="MyWiFi">
+    <div id="webclipsContainer"></div>
+    <button onclick="addWebClip()">Add WebClip</button>
 
-    <label>Wi-Fi Password (optional)</label>
-    <input type="password" id="wifiPassword" placeholder="password123">
-
-    <label>Web Clip Title (Home Screen Bookmark)</label>
-    <input type="text" id="clipTitle" placeholder="My Website">
-
-    <label>Web Clip URL</label>
-    <input type="url" id="clipURL" placeholder="https://example.com">
-
-    <label>Web Clip Icon URL</label>
-    <input type="url" id="clipIcon" placeholder="https://example.com/icon.png">
-
-    <div class="note">
-      Bookmark icon must be a square image (e.g. 120x120). Profile is not removable unless deleted in Settings.
-    </div>
+    <div class="note">Icons will be uploaded to Supabase and used in the profile. Profile must be installed to show locked bookmarks.</div>
 
     <button onclick="generateProfile()">Download Profile</button>
   </div>
 
   <script>
+    const SUPABASE_URL = 'https://hwqvzeilsvzhwiioojwe.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh3cXZ6ZWlsc3Z6aHdpaW9vandlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQyNzkwNTksImV4cCI6MjA2OTg1NTA1OX0.a3WoFihER-u9BNqtguvVz-w08szpsYxTqIYEI9pyZ4I';
+
+    const webclipsContainer = document.getElementById('webclipsContainer');
+
+    function addWebClip() {
+      const index = document.querySelectorAll('.webclip').length;
+      const div = document.createElement('div');
+      div.className = 'webclip';
+      div.innerHTML = `
+        <label>WebClip Title</label>
+        <input type="text" placeholder="Title" id="title${index}">
+
+        <label>URL</label>
+        <input type="url" placeholder="https://example.com" id="url${index}">
+
+        <label>Upload Icon (PNG)</label>
+        <input type="file" accept="image/png" id="icon${index}" onchange="uploadIcon(event, ${index})">
+
+        <img id="preview${index}" class="icon-preview" src="" style="display:none">
+        <input type="hidden" id="iconUrl${index}">
+      `;
+      webclipsContainer.appendChild(div);
+    }
+
+    async function uploadIcon(event, index) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const fileName = `icon-${Date.now()}-${index}.png`;
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch(`${SUPABASE_URL}/storage/v1/object/images/${fileName}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+          'x-upsert': 'true'
+        },
+        body: file
+      });
+
+      if (res.ok) {
+        const iconUrl = `${SUPABASE_URL}/storage/v1/object/public/images/${fileName}`;
+        document.getElementById(`iconUrl${index}`).value = iconUrl;
+        const preview = document.getElementById(`preview${index}`);
+        preview.src = iconUrl;
+        preview.style.display = 'block';
+      } else {
+        alert("Upload failed.");
+      }
+    }
+
     function generateUUID() {
       return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
         const r = Math.random() * 16 | 0;
@@ -101,54 +130,36 @@
 
     function generateProfile() {
       const profileName = document.getElementById('profileName').value;
-      const wifiSSID = document.getElementById('wifiSSID').value.trim();
-      const wifiPassword = document.getElementById('wifiPassword').value.trim();
-      const clipTitle = document.getElementById('clipTitle').value.trim();
-      const clipURL = document.getElementById('clipURL').value.trim();
-      const clipIcon = document.getElementById('clipIcon').value.trim();
-
+      const clips = document.querySelectorAll('.webclip');
       const payloads = [];
 
-      if (wifiSSID && wifiPassword) {
-        payloads.push({
-          PayloadType: "com.apple.wifi.managed",
-          SSID_STR: wifiSSID,
-          HiddenNetwork: false,
-          AutoJoin: true,
-          EncryptionType: "WPA",
-          Password: wifiPassword,
-          PayloadDisplayName: "Wi-Fi Config",
-          PayloadIdentifier: "com.example.wifi." + generateUUID(),
-          PayloadUUID: generateUUID(),
-          PayloadVersion: 1
-        });
-      }
+      clips.forEach((clip, i) => {
+        const title = document.getElementById(`title${i}`).value;
+        const url = document.getElementById(`url${i}`).value;
+        const icon = document.getElementById(`iconUrl${i}`).value;
 
-      if (clipTitle && clipURL) {
-        const webClipPayload = {
-          PayloadType: "com.apple.webClip.managed",
-          PayloadVersion: 1,
-          PayloadIdentifier: "com.example.webclip." + generateUUID(),
-          PayloadUUID: generateUUID(),
-          PayloadDisplayName: clipTitle,
-          Label: clipTitle,
-          URL: clipURL,
-          IsRemovable: false,
-          Precomposed: true,
-          FullScreen: true
-        };
-
-        if (clipIcon) {
-          webClipPayload.Icon = clipIcon;
+        if (title && url) {
+          payloads.push({
+            PayloadType: "com.apple.webClip.managed",
+            PayloadVersion: 1,
+            PayloadIdentifier: `com.example.webclip.${i}`,
+            PayloadUUID: generateUUID(),
+            PayloadDisplayName: title,
+            Label: title,
+            URL: url,
+            IsRemovable: false,
+            Icon: icon ? null : undefined,
+            Precomposed: true,
+            FullScreen: true,
+            IconURL: icon || undefined
+          });
         }
-
-        payloads.push(webClipPayload);
-      }
+      });
 
       const profile = {
         PayloadType: "Configuration",
         PayloadVersion: 1,
-        PayloadIdentifier: "com.example." + generateUUID().slice(0, 8),
+        PayloadIdentifier: `com.example.webclips`,
         PayloadUUID: generateUUID(),
         PayloadDisplayName: profileName,
         PayloadContent: payloads
@@ -197,6 +208,9 @@ ${convertToXML(profile)}
       xml += '</dict>';
       return xml;
     }
+
+    // Add default one on load
+    addWebClip();
   </script>
 </body>
 </html>
