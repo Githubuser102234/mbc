@@ -75,9 +75,10 @@
     <label>Wi-Fi Password (optional)</label>
     <input type="password" id="wifiPassword" placeholder="password123" />
 
+    <label><input type="checkbox" id="restrictApps"> Restrict System Apps</label>
+
     <div id="webclipList"></div>
     <button onclick="addWebClip()">Add WebClip (Home Screen Bookmark)</button>
-
 
     <button onclick="generateProfile()">Download Profile</button>
   </div>
@@ -85,8 +86,8 @@
   <script>
     const SUPABASE_URL = "https://hwqvzeilsvzhwiioojwe.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh3cXZ6ZWlsc3Z6aHdpaW9vandlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQyNzkwNTksImV4cCI6MjA2OTg1NTA1OX0.a3WoFihER-u9BNqtguvVz-w08szpsYxTqIYEI9pyZ4I";
-
     let webclipCount = 0;
+    const iconBlobs = {};
 
     function addWebClip() {
       const container = document.createElement("div");
@@ -99,13 +100,29 @@
         <input type="url" id="clipURL${webclipCount}" placeholder="https://example.com" />
 
         <label>Icon Upload (PNG or JPG)</label>
-        <input type="file" accept="image/*" onchange="uploadIcon(event, ${webclipCount})" />
+        <input type="file" accept="image/*" onchange="readIcon(event, ${webclipCount})" />
         <img class="preview" id="preview${webclipCount}" />
 
-        <input type="hidden" id="iconUrl${webclipCount}" />
+        <input type="hidden" id="iconBase64${webclipCount}" />
       `;
       document.getElementById("webclipList").appendChild(container);
       webclipCount++;
+    }
+
+    function readIcon(event, index) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result.split(",")[1];
+        document.getElementById(`iconBase64${index}`).value = base64;
+
+        const preview = document.getElementById(`preview${index}`);
+        preview.src = reader.result;
+        preview.style.display = "block";
+      };
+      reader.readAsDataURL(file);
     }
 
     function generateUUID() {
@@ -113,36 +130,6 @@
         const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
       });
-    }
-
-    async function uploadIcon(event, index) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const fileName = `icon-${Date.now()}-${index}.png`;
-      const uploadUrl = `${SUPABASE_URL}/storage/v1/object/images/${fileName}`;
-
-      const res = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'Content-Type': 'application/octet-stream',
-          'x-upsert': 'true'
-        },
-        body: file
-      });
-
-      if (res.ok) {
-        const iconUrl = `${SUPABASE_URL}/storage/v1/object/public/images/${fileName}`;
-        document.getElementById(`iconUrl${index}`).value = iconUrl;
-        const preview = document.getElementById(`preview${index}`);
-        preview.src = iconUrl;
-        preview.style.display = 'block';
-      } else {
-        const errorText = await res.text();
-        alert("Upload failed: " + errorText);
-        console.error("Upload error:", errorText);
-      }
     }
 
     function convertToXML(obj, indent = '  ') {
@@ -162,7 +149,7 @@
             xml += indent + indent + convertToXML(item, indent + '  ') + '\n';
           });
           xml += indent + `</array>\n`;
-        } else if (typeof val === 'object') {
+        } else if (typeof val === 'object' && val !== null) {
           xml += indent + convertToXML(val, indent + '  ') + '\n';
         }
       }
@@ -174,6 +161,7 @@
       const profileName = document.getElementById('profileName').value.trim();
       const wifiSSID = document.getElementById('wifiSSID').value.trim();
       const wifiPassword = document.getElementById('wifiPassword').value.trim();
+      const restrictApps = document.getElementById('restrictApps').checked;
 
       const payloads = [];
 
@@ -192,13 +180,28 @@
         });
       }
 
+      if (restrictApps) {
+        payloads.push({
+          PayloadType: "com.apple.applicationaccess",
+          PayloadVersion: 1,
+          PayloadIdentifier: "com.example.app.restrict",
+          PayloadUUID: generateUUID(),
+          PayloadDisplayName: "App Restrictions",
+          allowSafari: false,
+          allowCamera: false,
+          allowFaceTime: false,
+          allowScreenShot: false,
+          allowAppInstallation: false
+        });
+      }
+
       for (let i = 0; i < webclipCount; i++) {
         const title = document.getElementById(`clipTitle${i}`)?.value.trim();
         const url = document.getElementById(`clipURL${i}`)?.value.trim();
-        const icon = document.getElementById(`iconUrl${i}`)?.value.trim();
+        const base64 = document.getElementById(`iconBase64${i}`)?.value.trim();
 
         if (title && url) {
-          payloads.push({
+          const clipPayload = {
             PayloadType: "com.apple.webClip.managed",
             PayloadVersion: 1,
             PayloadIdentifier: `com.example.webclip.${generateUUID()}`,
@@ -206,11 +209,16 @@
             PayloadDisplayName: title,
             Label: title,
             URL: url,
-            Icon: icon ? [icon] : undefined,
             IsRemovable: false,
             Precomposed: true,
             FullScreen: true
-          });
+          };
+
+          if (base64) {
+            clipPayload.Icon = base64;
+          }
+
+          payloads.push(clipPayload);
         }
       }
 
@@ -223,12 +231,9 @@
         PayloadContent: payloads
       };
 
-      const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
- "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-${convertToXML(profile)}
-</plist>`;
+      let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"\n "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n`;
+      xml += convertToXML(profile);
+      xml += '\n</plist>';
 
       const blob = new Blob([xml], { type: 'application/x-apple-aspen-config' });
       const a = document.createElement('a');
